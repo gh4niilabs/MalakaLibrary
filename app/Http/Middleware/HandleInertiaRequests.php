@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -29,10 +30,23 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        // Cek apakah request ini untuk halaman admin (prefix /admin)
+        $isAdminRoute = $request->is('admin/*') || $request->is('admin');
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $isAdminRoute
+                    ? Auth::guard('admin')->user()
+                    : Auth::guard('web')->user(),
+                'role' => $isAdminRoute
+                    ? (Auth::guard('admin')->user()?->role ?? null)
+                    : (Auth::guard('web')->user()?->role ?? 'member'),
+            ],
+            // Share flash messages ke semua page
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }

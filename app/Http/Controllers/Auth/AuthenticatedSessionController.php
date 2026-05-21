@@ -31,9 +31,18 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        // Kalau yang login adalah admin, tolak akses dan arahkan ke admin login
+        if (Auth::user()->role === 'admin') {
+            Auth::guard('web')->logout();
+            
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'email' => 'Akun admin tidak bisa login dari sini. Silakan gunakan halaman Login Admin.',
+            ]);
+        }
+
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended('/');
     }
 
     /**
@@ -43,8 +52,9 @@ class AuthenticatedSessionController extends Controller
     {
         Auth::guard('web')->logout();
 
+        // Invalidate session supaya database session driver bersih
+        // Ini WAJIB buat database session driver, kalau nggak session jadi stale
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
         return redirect('/');
