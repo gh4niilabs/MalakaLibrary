@@ -7,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -40,6 +41,7 @@ Route::get('/', function () {
 })->name('home');
 Route::get('/about', fn() => Inertia::render('Dashboard'))->name('about');
 Route::get('/katalog', [KatalogController::class, 'index'])->name('katalog.index');
+Route::post('/chatbot', ChatbotController::class)->middleware('throttle:20,1')->name('chatbot');
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. MEMBER PAGES (Requires Login)

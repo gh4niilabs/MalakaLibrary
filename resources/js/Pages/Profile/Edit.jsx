@@ -1,164 +1,42 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, usePage } from '@inertiajs/react';
-import DeleteUserForm from './Partials/DeleteUserForm';
-import UpdatePasswordForm from './Partials/UpdatePasswordForm';
-import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
-import { useState, useEffect } from 'react';
+import { Head, useForm, usePage } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+import InputError from '@/Components/InputError';
+import LibraryLayout from '@/Layouts/LibraryLayout';
 
 export default function Edit({ mustVerifyEmail, status }) {
-    const user = usePage().props.auth.user;
-    const [mounted, setMounted] = useState(false);
-    const [activeSection, setActiveSection] = useState(null);
+    const { auth } = usePage().props;
+    const user = auth.user;
+    const avatarInput = useRef(null);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const profile = useForm({ _method: 'PATCH', name: user.name ?? '', email: user.email ?? '', avatar: null });
+    const password = useForm({ current_password: '', password: '', password_confirmation: '' });
+    const deletion = useForm({ password: '' });
+    const avatarUrl = avatarPreview || (user.avatar ? `/storage/${user.avatar}` : null);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    const avatarUrl = user.avatar ? `/storage/${user.avatar}` : null;
-
-    const sections = [
-        { id: 'profile', label: 'Profile',     emoji: '👤', accent: 'amber' },
-        { id: 'password', label: 'Password',   emoji: '🔒', accent: 'red'   },
-        { id: 'danger',   label: 'Danger Zone', emoji: '⚠️', accent: 'red'   },
-    ];
+    const submitProfile = (event) => { event.preventDefault(); profile.post(route('profile.update'), { forceFormData: true, preserveScroll: true }); };
+    const submitPassword = (event) => { event.preventDefault(); password.put(route('password.update'), { preserveScroll: true, onSuccess: () => password.reset() }); };
+    const submitDelete = (event) => { event.preventDefault(); deletion.delete(route('profile.destroy'), { preserveScroll: true, onError: () => deletion.reset('password') }); };
+    const selectAvatar = (event) => { const file = event.target.files?.[0]; if (!file) return; profile.setData('avatar', file); setAvatarPreview(URL.createObjectURL(file)); };
+    const field = 'w-full rounded-none border-0 border-b border-[#2A2A2A] bg-transparent px-0 py-2 font-body-md text-body-md text-[#E5E2E1] outline-none transition-colors placeholder:text-[#5C403C] focus:border-[#E5E2E1]';
 
     return (
-        <AuthenticatedLayout>
-            <Head title="Profile Settings" />
+        <LibraryLayout auth={auth} title="Profil Saya">
+            <Head><meta name="description" content="Pengaturan profil anggota Malaka Library." /></Head>
+            <div className="mx-auto w-full max-w-[640px] px-4 py-10 text-left sm:px-6 md:py-12">
+                <div className="mb-8"><div className="mb-1 font-meta-sm text-meta-sm uppercase tracking-widest text-[#AC8884]">Pengaturan Akun / Anggota</div><h1 className="font-display text-display text-[#E5E2E1]">Profil Saya</h1></div>
+                <div className="mb-8 flex items-center gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#2A2A2A] font-title-md text-title-md text-[#E5E2E1]">{avatarUrl ? <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" /> : user.name?.charAt(0)?.toUpperCase()}</div><div className="flex min-w-0 flex-col"><span className="truncate font-title-md text-title-md text-[#E5E2E1]">{user.name}</span><span className="truncate font-body-md text-body-md text-[#AC8884]">{user.email}</span><span className="font-meta-sm text-meta-sm text-[#5C403C]">Anggota Aktif</span></div></div>
+                <div className="mb-8 h-px w-full bg-[#2A2A2A]" />
 
-            <style>{`
-                @keyframes fadeUp {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to   { opacity: 1; transform: translateY(0); }
-                }
-                .fade-card { animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both; }
-            `}</style>
+                <section className="mb-8"><h2 className="mb-6 font-title-md text-title-md text-[#E5E2E1]">Data diri</h2><form onSubmit={submitProfile} className="space-y-6"><label className="flex flex-col font-meta-sm text-meta-sm text-[#AC8884]">Nama lengkap<input className={field} value={profile.data.name} onChange={(e) => profile.setData('name', e.target.value)} required /><InputError message={profile.errors.name} /></label><label className="flex flex-col font-meta-sm text-meta-sm text-[#AC8884]">Alamat surel / email<input className={field} type="email" value={profile.data.email} onChange={(e) => profile.setData('email', e.target.value)} required /><InputError message={profile.errors.email} /></label><label className="flex flex-col font-meta-sm text-meta-sm text-[#AC8884]">Nomor Induk Siswa Nasional (NISN)<input className="w-full cursor-not-allowed rounded-none border-0 border-b border-[#2A2A2A] bg-transparent px-0 py-2 font-body-md text-body-md text-[#737373]" value="Tidak tersedia dari backend" disabled readOnly /></label><div><button type="button" onClick={() => avatarInput.current?.click()} className="font-body-md text-body-md text-[#AC8884] underline underline-offset-4 hover:text-[#E5E2E1]">Ganti foto profil</button><input ref={avatarInput} type="file" accept="image/jpeg,image/png" className="hidden" onChange={selectAvatar} /><InputError message={profile.errors.avatar} /></div><div className="flex items-center gap-4 pt-2"><button type="submit" disabled={profile.processing} className="rounded-md bg-[#DC2626] px-4 py-2 font-label-md text-label-md text-white hover:bg-[#B91C1C] disabled:opacity-50">Simpan</button>{profile.recentlySuccessful && <span className="font-meta-sm text-meta-sm text-[#FACC15]">Tersimpan</span>}</div></form></section>
+                <div className="mb-8 h-px w-full bg-[#2A2A2A]" />
 
-            <div className="min-h-screen bg-[#0f0f12]">
-                <div className="max-w-4xl mx-auto px-5 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-7">
+                <section className="mb-8"><h2 className="mb-6 font-title-md text-title-md text-[#E5E2E1]">Ganti password</h2><form onSubmit={submitPassword} className="space-y-6"><label className="flex flex-col font-meta-sm text-meta-sm text-[#AC8884]">Password saat ini<input className={field} type="password" value={password.data.current_password} onChange={(e) => password.setData('current_password', e.target.value)} placeholder="Masukkan kata sandi lama" /><InputError message={password.errors.current_password} /></label><label className="flex flex-col font-meta-sm text-meta-sm text-[#AC8884]">Password baru<input className={field} type="password" value={password.data.password} onChange={(e) => password.setData('password', e.target.value)} placeholder="Minimal 8 karakter alfanumerik" /><InputError message={password.errors.password} /></label><label className="flex flex-col font-meta-sm text-meta-sm text-[#AC8884]">Konfirmasi password baru<input className={field} type="password" value={password.data.password_confirmation} onChange={(e) => password.setData('password_confirmation', e.target.value)} placeholder="Ulangi kata sandi baru" /><InputError message={password.errors.password_confirmation} /></label><button type="submit" disabled={password.processing} className="border border-[#2A2A2A] px-4 py-2 font-label-md text-label-md text-[#E5E2E1] hover:border-[#737373] disabled:opacity-50">Perbarui password</button></form></section>
+                <div className="mb-8 h-px w-full bg-[#2A2A2A]" />
 
-                    {/* ── Profile Hero Header ── */}
-                    <div
-                        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
-                        style={{ background: 'linear-gradient(135deg, #141414 0%, #1a1010 100%)' }}
-                    >
-                        {/* Ambient glow */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/[0.04] rounded-full blur-[80px]" />
-                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500/[0.03] rounded-full blur-[60px]" />
-                        {/* Top accent line */}
-                        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-red-600/50 to-transparent" />
-
-                        <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                            {/* Avatar display */}
-                            <div className="relative flex-shrink-0">
-                                {avatarUrl ? (
-                                    <img
-                                        src={avatarUrl}
-                                        alt={user.name}
-                                        className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-4 ring-white/[0.06] shadow-2xl shadow-black/50"
-                                    />
-                                ) : (
-                                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-red-700 via-red-700 to-amber-700 flex items-center justify-center text-2xl sm:text-3xl font-bold text-white shadow-2xl shadow-red-900/30 ring-4 ring-white/[0.06]">
-                                        {user.name?.charAt(0)?.toUpperCase() ?? 'U'}
-                                    </div>
-                                )}
-                                {/* Online indicator */}
-                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full ring-2 ring-[#141414]" />
-                            </div>
-
-                            {/* User info */}
-                            <div className="text-center sm:text-left">
-                                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
-                                    {user.name}
-                                </h1>
-                                <p className="text-white/40 text-sm mt-1">{user.email}</p>
-                                <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/[0.08] border border-amber-500/10 text-amber-400 text-[11px] font-semibold tracking-wide">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                        Member Aktif
-                                    </span>
-                                    {user.email_verified_at && (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/[0.08] border border-emerald-500/10 text-emerald-400 text-[11px] font-semibold">
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Terverifikasi
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Section quick nav pills */}
-                        <div className="relative flex flex-wrap gap-2 mt-6 pt-5 border-t border-white/[0.05]">
-                            {sections.map((s) => (
-                                <button
-                                    key={s.id}
-                                    onClick={() => {
-                                        setActiveSection(s.id);
-                                        document.getElementById(`section-${s.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    }}
-                                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 ${
-                                        activeSection === s.id
-                                            ? s.accent === 'amber'
-                                                ? 'bg-amber-500/20 border border-amber-500/30 text-amber-400'
-                                                : 'bg-red-500/20 border border-red-500/30 text-red-400'
-                                            : 'bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70 hover:bg-white/[0.06]'
-                                    }`}
-                                >
-                                    {s.emoji} {s.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* ── Profile Information Card ── */}
-                    <div
-                        id="section-profile"
-                        onMouseEnter={() => setActiveSection('profile')}
-                        className={`fade-card relative rounded-3xl overflow-hidden border border-white/[0.05] bg-[#111111] transition-all duration-500 hover:border-amber-500/10 ${mounted ? '' : 'opacity-0'}`}
-                        style={{ animationDelay: '100ms' }}
-                    >
-                        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/[0.02] rounded-full blur-[60px]" />
-                        <div className="relative p-7 sm:p-9">
-                            <UpdateProfileInformationForm
-                                mustVerifyEmail={mustVerifyEmail}
-                                status={status}
-                            />
-                        </div>
-                    </div>
-
-                    {/* ── Update Password Card ── */}
-                    <div
-                        id="section-password"
-                        onMouseEnter={() => setActiveSection('password')}
-                        className={`fade-card relative rounded-3xl overflow-hidden border border-white/[0.05] bg-[#111111] transition-all duration-500 hover:border-red-500/[0.08] ${mounted ? '' : 'opacity-0'}`}
-                        style={{ animationDelay: '200ms' }}
-                    >
-                        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-red-600/40 to-transparent" />
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-red-600/[0.02] rounded-full blur-[60px]" />
-                        <div className="relative p-7 sm:p-9">
-                            <UpdatePasswordForm />
-                        </div>
-                    </div>
-
-                    {/* ── Danger Zone Card ── */}
-                    <div
-                        id="section-danger"
-                        onMouseEnter={() => setActiveSection('danger')}
-                        className={`fade-card relative rounded-3xl overflow-hidden border border-red-900/20 bg-[#111111] transition-all duration-500 hover:border-red-600/20 ${mounted ? '' : 'opacity-0'}`}
-                        style={{ animationDelay: '300ms' }}
-                    >
-                        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-red-600/50 to-transparent" />
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-red-600/[0.03] rounded-full blur-[60px]" />
-                        <div className="relative p-7 sm:p-9">
-                            <DeleteUserForm />
-                        </div>
-                    </div>
-
-                </div>
+                <section><h2 className="font-title-md text-title-md text-[#E5E2E1]">Hapus akun</h2><p className="mt-2 font-body-md text-body-md leading-relaxed text-[#AC8884]">Menghapus akun akan membatalkan seluruh hak akses digital dan menghapus daftar favorit.</p>{!deleteOpen ? <button type="button" onClick={() => setDeleteOpen(true)} className="mt-5 font-body-md text-body-md text-[#DC2626] underline underline-offset-4">Hapus akun</button> : <form onSubmit={submitDelete} className="mt-5 flex flex-wrap items-end gap-3"><label className="flex flex-1 flex-col font-meta-sm text-meta-sm text-[#AC8884]">Konfirmasi password<input className={field} type="password" value={deletion.data.password} onChange={(e) => deletion.setData('password', e.target.value)} required /></label><button type="submit" className="bg-[#93000A] px-4 py-2 font-label-md text-label-md text-white">Konfirmasi hapus</button></form>}</section>
+                {mustVerifyEmail && user.email_verified_at === null && <p className="mt-6 font-meta-sm text-meta-sm text-[#FACC15]">Email belum diverifikasi. {status}</p>}
             </div>
-        </AuthenticatedLayout>
+        </LibraryLayout>
     );
 }
