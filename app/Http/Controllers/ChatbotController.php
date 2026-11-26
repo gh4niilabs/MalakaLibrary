@@ -16,8 +16,9 @@ class ChatbotController extends Controller
         ]);
 
         $message = trim($data['message']);
+        $documentChunks = $this->retrieveRelevantChunks($message);
         $books = $this->findRelevantBooks($message);
-        $context = $this->buildContext($books);
+        $context = $this->buildContext($documentChunks, $books);
 
         $response = Http::timeout(45)
             ->withToken(config('services.openrouter.key'))
@@ -52,6 +53,60 @@ class ChatbotController extends Controller
         ]);
     }
 
+    private function retrieveRelevantChunks(string $message): array
+    {
+        $ollamaUrl = rtrim((string) config('services.ollama.url'), '/');
+        $qdrantUrl = rtrim((string) config('services.qdrant.url'), '/');
+        $qdrantKey = (string) config('services.qdrant.key');
+        $collection = (string) config('services.qdrant.collection');
+
+        if ($ollamaUrl === '' || $qdrantUrl === '' || $qdrantKey === '') {
+            return [];
+        }
+
+        try {
+            $embedding = Http::timeout(30)->post("{$ollamaUrl}/api/embed", [
+                'model' => config('services.ollama.embedding_model'),
+                'input' => $message,
+            ]);
+
+            if ($embedding->failed() || ! is_array($vector = $embedding->json('embeddings.0'))) {
+                report(new \RuntimeException('Chatbot query embedding failed.'));
+                return [];
+            }
+
+            $search = Http::withHeaders(['api-key' => $qdrantKey])
+                ->timeout(20)
+                ->post("{$qdrantUrl}/collections/".rawurlencode($collection).'/points/query', [
+                    'query' => $vector,
+                    'limit' => 4,
+                    'with_payload' => true,
+                ]);
+
+            if ($search->failed()) {
+                report(new \RuntimeException('Qdrant semantic search failed with HTTP '.$search->status().'.'));
+                return [];
+            }
+
+            return collect($search->json('result.points', []))
+                ->map(function (array $point) {
+                    $payload = $point['payload'] ?? [];
+                    return [
+                        'text' => $payload['text'] ?? '',
+                        'source' => $payload['source'] ?? 'Dokumen Malaka Library',
+                        'page' => $payload['page'] ?? null,
+                        'score' => $point['score'] ?? null,
+                    ];
+                })
+                ->filter(fn (array $item) => trim($item['text']) !== '')
+                ->values()
+                ->all();
+        } catch (\Throwable $exception) {
+            report($exception);
+            return [];
+        }
+    }
+
     private function findRelevantBooks(string $message)
     {
         $words = collect(preg_split('/[^\pL\pN]+/u', mb_strtolower($message)))
@@ -78,7 +133,7 @@ class ChatbotController extends Controller
             : $books;
     }
 
-    private function buildContext($books): string
+    private function buildContext(array $documentChunks, $books): string
     {
         $libraryInfo = <<<'INFO'
 Nama layanan: Malaka Library.
@@ -91,6 +146,18 @@ INFO;
             return "- {$book->title} | Penulis: {$book->author} | Penerbit: {$book->publisher} | Tahun: {$book->year} | Tersedia: {$book->available}/{$book->stock} | Kategori: {$categories}";
         })->join("\n");
 
-        return "{$libraryInfo}\n\nKoleksi buku yang relevan dari database:\n{$bookInfo}";
+        $documentInfo = collect($documentChunks)
+            ->map(fn (array $chunk) => '[Sumber: '.$chunk['source'].($chunk['page'] ? ', halaman '.$chunk['page'] : '')."]\n{$chunk['text']}")
+            ->join("\n\n");
+
+        if ($documentInfo === '') {
+            $documentInfo = 'Tidak ada potongan dokumen yang cocok ditemukan.';
+        }
+
+        if ($bookInfo === '') {
+            $bookInfo = 'Tidak ada informasi katalog yang relevan ditemukan.';
+        }
+
+        return "{$libraryInfo}\n\nPotongan dokumen RAG yang paling relevan:\n{$documentInfo}\n\nData katalog buku dari database:\n{$bookInfo}";
     }
 }

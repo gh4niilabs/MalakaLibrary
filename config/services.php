@@ -40,4 +40,16 @@ return [
         'model' => env('OPENROUTER_MODEL', 'openrouter/free'),
     ],
 
+    'qdrant' => [
+        'url' => env('QDRANT_URL'),
+        'key' => env('QDRANT_API_KEY'),
+        'collection' => env('QDRANT_COLLECTION', 'rag-chatbot-malakalibrary'),
+        'vector_size' => (int) env('QDRANT_VECTOR_SIZE', 768),
+    ],
+
+    'ollama' => [
+        'url' => env('OLLAMA_URL', 'http://host.docker.internal:11434'),
+        'embedding_model' => env('OLLAMA_EMBEDDING_MODEL', 'embeddinggemma'),
+    ],
+
 ];
